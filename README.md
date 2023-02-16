@@ -1,1 +1,3 @@
-# hanlab_deeplabcut_helper_scripts
+### Helper scripts for DLC analysis in Han lab
+Zahra Dhanerawala, Adina Solomon
+d.zahra@wustl.edu

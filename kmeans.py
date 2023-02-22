@@ -5,7 +5,7 @@ Created on Wed Feb 15 14:13:27 2023
 @author: Han
 """
 
-import pandas as pd, matplotlib.pyplot as plt, numpy as np
+import pandas as pd, matplotlib.pyplot as plt, numpy as np, seaborn as sns
 
 df = pd.read_csv(r'C:\Users\Han\Desktop\Licks_nose_blink-Zahra-2023-02-16\videos\200929_E130DLC_resnet50_Licks_nose_blinkFeb16shuffle1_10000.csv')
 #change column names
@@ -31,12 +31,10 @@ df['tongue2_x'][~keep2]=0
 keep3=df['tongue3_likelihood'].astype('float32') > 0.9
 df['tongue3_x'][~keep3]=0
 
-
 plt.plot(df['tongue1_x'].astype('float32').values)
 plt.plot(df['tongue2_x'].astype('float32').values)
 plt.plot(df['tongue3_x'].astype('float32').values)
 
-#k means
 from sklearn.preprocessing import normalize
 #data
 blinks=df['eyeLidBottom_y'].astype('float32').values - df['eyeLidTop_y'].astype('float32').values
@@ -47,6 +45,8 @@ normtongue=normalize([tongue])[0]
 #nose
 nose=df['nose_y'].astype('float32').values
 normnose=normalize([nose])[0]
+eyeLidBottom=df['eyeLidBottom_y'].astype('float32').values
+eyeLidTop=df['eyeLidTop_y'].astype('float32').values
 
 plt.scatter(range(39998),normblinks)
 plt.scatter(range(39998),normnose)
@@ -59,16 +59,23 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 #https://towardsdatascience.com/understanding-k-means-clustering-in-machine-learning-6a6e67336aa1
-df = pd.DataFrame(np.array([blinks,nose,tongue]).T)
-df.columns=['blinks','nose','tongue_av']
-X_scaled=StandardScaler().fit_transform(df)
+dfkmeans = pd.DataFrame(np.array([blinks,nose,tongue]).T)
+dfkmeans.columns=['blinks','nose','tongue_av']
+
+#classify blinks, sniffs, licks?
+dfkmeans.columns=['blinks','nose','tongue_av']
+dfkmeans['blinks_lbl'] = [True if xx < 17 else False for i,xx in enumerate(dfkmeans['blinks'])] #arbitrary thres
+dfkmeans['sniff_lbl'] =  [True if xx < 58 else False for i,xx in enumerate(dfkmeans['nose'])] #arbitrary thres
+dfkmeans['lick'] =  [True if xx > 0 else False for i,xx in enumerate(dfkmeans['tongue_av'])] #arbitrary thres
+
+X_scaled=StandardScaler().fit_transform(dfkmeans[['blinks','nose','tongue_av']])
 #https://medium.com/swlh/k-means-clustering-on-high-dimensional-data-d2151e1a4240
 pca_2 = PCA(n_components=2)
 pca_2_result = pca_2.fit_transform(X_scaled)
 print('Explained variation per principal component: {}'.format(pca_2.explained_variance_ratio_))
 print('Cumulative variance explained by 2 principal components: {:.2%}'.format(np.sum(pca_2.explained_variance_ratio_)))
 #convert to df...
-X_scaled = pd.DataFrame(X_scaled, columns=df.columns)
+X_scaled = pd.DataFrame(X_scaled, columns=['blinks','nose','tongue_av'])
 
 dataset_pca = pd.DataFrame(abs(pca_2.components_), columns=X_scaled.columns, index=['PC_1', 'PC_2'])
 print('\n\n', dataset_pca)
@@ -84,7 +91,7 @@ print("\n******************************************************************")
 # Silhouette score value ranges from 0 to 1, 0 being the worst and 1 being the best.
 
 # candidate values for our number of cluster
-parameters = [2, 3, 4, 5, 10, 15, 20, 25, 30, 35, 40]
+parameters = [2, 3, 4, 5]
 # instantiating ParameterGrid, pass number of clusters as input
 parameter_grid = sk.model_selection.ParameterGrid({'n_clusters': parameters})
 best_score = -1
@@ -109,15 +116,34 @@ plt.xlabel('Number of Clusters')
 plt.show()
 
 # fitting KMeans    
-kmeans = KMeans(n_clusters=3)    
+kmeans = KMeans(n_clusters=4)    
 kmeans.fit(pca_2_result)
 label = kmeans.fit_predict(pca_2_result)
 
 # plot pc components
 uniq = np.unique(label)
 for i in uniq:
-   plt.scatter(pca_2_result[label == i , 0] , pca_2_result[label == i , 1] , label = i)
+   plt.scatter(pca_2_result[label == i, 0] , pca_2_result[label == i , 1] , label = i)
+
+#plot behaviors
+pca_2_result_bl=pca_2_result[dfkmeans['blinks_lbl']]
+plt.scatter(pca_2_result_bl[:, 0] , pca_2_result_bl[: , 1] , color='k', marker='+')
+pca_2_result_sn=pca_2_result[dfkmeans['sniff_lbl']]
+plt.scatter(pca_2_result_sn[:, 0] , pca_2_result_sn[: , 1] , color='k', marker='4')
+pca_2_result_lk=pca_2_result[dfkmeans['lick']]
+plt.scatter(pca_2_result_lk[:, 0] , pca_2_result_lk[: , 1] , color='k', marker='1')
 
 #plt.scatter(pca_2_result[:,0],pca_2_result[:,1],s=10,color='k')
 #plot kmeans centroids (first 2 dim??? or only after run on pca)
-plt.scatter(kmeans.cluster_centers_[:,0], kmeans.cluster_centers_[:,1],s=50,color='k',marker='x')
+plt.scatter(kmeans.cluster_centers_[:,0], kmeans.cluster_centers_[:,1],s=100,color='y',marker='*')
+plt.legend(['Cluster 1', 'Cluster 2', 'Cluster 3', 'Cluster 4', 'blink', 'sniff', 'lick', 'K-means centroids'])
+plt.xlabel("PC1")
+plt.Ylabel("PC2")
+#%%
+#visualize cross correlation
+#https://www.kaggle.com/code/sanikamal/principal-component-analysis-with-kmeans
+# Set up the matplotlib figure
+f, ax = plt.subplots(figsize=(12, 10))
+plt.title('Pearson Correlation of Movie Features')
+# Draw the heatmap using seaborn
+sns.heatmap(X_scaled.astype(float).corr(),linewidths=0.25,vmax=1.0, square=True, cmap="YlGnBu", linecolor='black', annot=True)

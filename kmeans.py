@@ -18,9 +18,15 @@ df=df.drop([0,1])
 #plot blinks
 #here i think y pos starts from above
 plt.plot(df['eyeLidBottom_y'].astype('float32').values - df['eyeLidTop_y'].astype('float32').values)
+plt.ylabel('eyelidbottom-eyelidtop y position (pixels)')
+plt.xlabel('frames')
+plt.axhline(y=17, color='r', linestyle='-')
 
 #plot nose movement
 plt.plot(df['nose_y'].astype('float32').values)
+plt.ylabel('nose y position (pixels)')
+plt.xlabel('frames')
+plt.axhline(y=58, color='r', linestyle='-')
 
 #plot tongue1 movement
 #assign to nans/0
@@ -138,7 +144,24 @@ plt.scatter(pca_2_result_lk[:, 0] , pca_2_result_lk[: , 1] , color='k', marker='
 plt.scatter(kmeans.cluster_centers_[:,0], kmeans.cluster_centers_[:,1],s=100,color='y',marker='*')
 plt.legend(['Cluster 1', 'Cluster 2', 'Cluster 3', 'Cluster 4', 'blink', 'sniff', 'lick', 'K-means centroids'])
 plt.xlabel("PC1")
-plt.Ylabel("PC2")
+plt.ylabel("PC2")
+
+#only get cluster 2 frames
+cluster2=df[label==3]
+#here i think y pos starts from above
+plt.plot(cluster2['eyeLidBottom_y'].astype('float32').values - cluster2['eyeLidTop_y'].astype('float32').values)
+plt.ylabel('eyelidbottom-eyelidtop y position (pixels)')
+plt.xlabel('frames')
+plt.axhline(y=17, color='r', linestyle='-')
+
+#plot nose movement
+plt.plot(cluster2['nose_y'].astype('float32').values)
+plt.ylabel('nose y position (pixels)')
+plt.xlabel('frames')
+plt.axhline(y=58, color='r', linestyle='-')
+
+#get frames
+cluster4frames=np.arange(39998)[label==3]
 #%%
 #visualize cross correlation
 #https://www.kaggle.com/code/sanikamal/principal-component-analysis-with-kmeans

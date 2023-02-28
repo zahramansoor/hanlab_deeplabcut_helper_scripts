@@ -47,8 +47,11 @@ tongue=df[['tongue1_x','tongue2_x','tongue3_x']].astype('float32').mean(axis=1, 
 #nose
 nose=df[['noseTop_y','noseBottom_y']].astype('float32').mean(axis=1, skipna=False).astype('float32').values
 #lip movement/mouth open
-mouth_open=df[['lip1_y','lip2_y']].astype('float32').mean(axis=1, skipna=False).astype('float32').values
-plt.scatter(np.arange(len(mouth_open)),mouth_open)
+mouth_open1=df['lip2_x'].astype('float32').astype('float32').values
+mouth_open2=df['lip1_y'].astype('float32').astype('float32').values
+plt.scatter(np.arange(len(mouth_open2)),mouth_open2)
+plt.axhline(y=0.8, color='r', linestyle='-')
+
 #%%
 # PCA and kmeans
 import sklearn as sk
@@ -56,23 +59,24 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.decomposition import PCA
 #https://towardsdatascience.com/understanding-k-means-clustering-in-machine-learning-6a6e67336aa1
-dfkmeans = pd.DataFrame(np.array([blinks,nose,tongue]).T)
-dfkmeans.columns=['blinks','nose','tongue_av']
+dfkmeans = pd.DataFrame(np.array([blinks,nose,tongue,mouth_open1,mouth_open2]).T)
+dfkmeans.columns=['blinks','nose','tongue_av','mouth_open1','mouth_open2']
 
 #classify blinks, sniffs, licks?
-dfkmeans.columns=['blinks','nose','tongue_av']
 dfkmeans['blinks_lbl'] = [True if xx < 250 else False for i,xx in enumerate(dfkmeans['blinks'])] #arbitrary thres
 dfkmeans['sniff_lbl'] =  [True if xx < 70 else False for i,xx in enumerate(dfkmeans['nose'])] #arbitrary thres
-dfkmeans['lick'] =  [True if xx > 0 else False for i,xx in enumerate(dfkmeans['tongue_av'])] #arbitrary thres
+dfkmeans['biglicks'] =  [True if xx > 265 else False for i,xx in enumerate(dfkmeans['tongue_av'])] #arbitrary thres
+#dfkmeans['mouth_open1'] =  [True if xx > 298 else False for i,xx in enumerate(dfkmeans['mouth_open1'])] #arbitrary thres
+#dfkmeans['mouth_open2'] =  [True if xx > 0.8 else False for i,xx in enumerate(dfkmeans['mouth_open1'])] #arbitrary thres
 
-X_scaled=StandardScaler().fit_transform(dfkmeans[['blinks','nose','tongue_av']])
+X_scaled=StandardScaler().fit_transform(dfkmeans[['blinks','nose','tongue_av']])#,'mouth_open1','mouth_open2']])
 #https://medium.com/swlh/k-means-clustering-on-high-dimensional-data-d2151e1a4240
 pca_2 = PCA(n_components=2)
 pca_2_result = pca_2.fit_transform(X_scaled)
 print('Explained variation per principal component: {}'.format(pca_2.explained_variance_ratio_))
 print('Cumulative variance explained by 2 principal components: {:.2%}'.format(np.sum(pca_2.explained_variance_ratio_)))
 #convert to df...
-X_scaled = pd.DataFrame(X_scaled, columns=['blinks','nose','tongue_av'])
+X_scaled = pd.DataFrame(X_scaled, columns=['blinks','nose','tongue_av'])#,'mouth_open1','mouth_open2'])
 
 dataset_pca = pd.DataFrame(abs(pca_2.components_), columns=X_scaled.columns, index=['PC_1', 'PC_2'])
 print('\n\n', dataset_pca)
@@ -88,7 +92,7 @@ print("\n******************************************************************")
 # Silhouette score value ranges from 0 to 1, 0 being the worst and 1 being the best.
 
 # candidate values for our number of cluster
-parameters = [2, 3, 4, 5]
+parameters = [4,6,8]
 # instantiating ParameterGrid, pass number of clusters as input
 parameter_grid = sk.model_selection.ParameterGrid({'n_clusters': parameters})
 best_score = -1
@@ -113,7 +117,7 @@ plt.xlabel('Number of Clusters')
 plt.show()
 
 # fitting KMeans    
-kmeans = KMeans(n_clusters=4)    
+kmeans = KMeans(n_clusters=3)    
 kmeans.fit(X_scaled)
 label = kmeans.fit_predict(X_scaled)
 
@@ -127,13 +131,13 @@ pca_2_result_bl=pca_2_result[dfkmeans['blinks_lbl']]
 plt.scatter(pca_2_result_bl[:, 0] , pca_2_result_bl[: , 1] , color='k', marker='+')
 pca_2_result_sn=pca_2_result[dfkmeans['sniff_lbl']]
 plt.scatter(pca_2_result_sn[:, 0] , pca_2_result_sn[: , 1] , color='k', marker='4')
-pca_2_result_lk=pca_2_result[dfkmeans['lick']]
+pca_2_result_lk=pca_2_result[dfkmeans['biglicks']]
 plt.scatter(pca_2_result_lk[:, 0] , pca_2_result_lk[: , 1] , color='k', marker='1')
 
 #plt.scatter(pca_2_result[:,0],pca_2_result[:,1],s=10,color='k')
 #plot kmeans centroids (first 2 dim??? or only after run on pca)
 plt.scatter(kmeans.cluster_centers_[:,0], kmeans.cluster_centers_[:,1],s=100,color='y',marker='*')
-plt.legend(['Cluster 1', 'Cluster 2', 'Cluster 3', 'Cluster 4', 'blink', 'sniff', 'lick', 'K-means centroids'])
+plt.legend(['Cluster 1', 'Cluster 2', 'Cluster 3', 'blink', 'sniff', 'lick', 'K-means centroids'])
 plt.xlabel("PC1")
 plt.ylabel("PC2")
 

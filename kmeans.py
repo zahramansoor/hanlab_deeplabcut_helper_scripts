@@ -42,20 +42,13 @@ plt.plot(df['tongue2_x'].astype('float32').values)
 plt.plot(df['tongue3_x'].astype('float32').values)
 
 blinks=df['eyeBottom_y'].astype('float32').values - df['eyeTop_y'].astype('float32').values
-normblinks=normalize([blinks])[0]
 #tongue movement
 tongue=df[['tongue1_x','tongue2_x','tongue3_x']].astype('float32').mean(axis=1, skipna=False)
-normtongue=normalize([tongue])[0]
 #nose
-nose=df['nose_y'].astype('float32').values
-normnose=normalize([nose])[0]
-eyeLidBottom=df['eyeLidBottom_y'].astype('float32').values
-eyeLidTop=df['eyeLidTop_y'].astype('float32').values
-
-plt.scatter(range(39998),normblinks)
-plt.scatter(range(39998),normnose)
-plt.scatter(range(39998),normtongue)
-
+nose=df[['noseTop_y','noseBottom_y']].astype('float32').mean(axis=1, skipna=False).astype('float32').values
+#lip movement/mouth open
+mouth_open=df[['lip1_y','lip2_y']].astype('float32').mean(axis=1, skipna=False).astype('float32').values
+plt.scatter(np.arange(len(mouth_open)),mouth_open)
 #%%
 # PCA and kmeans
 import sklearn as sk
@@ -68,8 +61,8 @@ dfkmeans.columns=['blinks','nose','tongue_av']
 
 #classify blinks, sniffs, licks?
 dfkmeans.columns=['blinks','nose','tongue_av']
-dfkmeans['blinks_lbl'] = [True if xx < 17 else False for i,xx in enumerate(dfkmeans['blinks'])] #arbitrary thres
-dfkmeans['sniff_lbl'] =  [True if xx < 58 else False for i,xx in enumerate(dfkmeans['nose'])] #arbitrary thres
+dfkmeans['blinks_lbl'] = [True if xx < 250 else False for i,xx in enumerate(dfkmeans['blinks'])] #arbitrary thres
+dfkmeans['sniff_lbl'] =  [True if xx < 70 else False for i,xx in enumerate(dfkmeans['nose'])] #arbitrary thres
 dfkmeans['lick'] =  [True if xx > 0 else False for i,xx in enumerate(dfkmeans['tongue_av'])] #arbitrary thres
 
 X_scaled=StandardScaler().fit_transform(dfkmeans[['blinks','nose','tongue_av']])

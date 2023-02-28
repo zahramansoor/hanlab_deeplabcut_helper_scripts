@@ -9,24 +9,24 @@ import pandas as pd, matplotlib.pyplot as plt, numpy as np, seaborn as sns
 
 df = pd.read_csv(r'Z:\DLC\DLC_networks\pupil_licks_nose_paw-Zahra-2023-02-27\videos\230225_E201DLC_resnet50_pupil_licks_nose_pawFeb27shuffle1_50000.csv')
 #change column names
-df.columns=['bodyparts', 'eyeLidTop_x', 'eyeLidTop_y', 'eyeLidTop_likelihood', 'eyeLidBottom_x',
-       'eyeLidBottom_y', 'eyeLidBottom_likelihood', 'nose_x', 'nose_y', 'nose_likelihood', 'tongue1_x',
-       'tongue1_y', 'tongue1_likelihood', 'tongue2_x', 'tongue2_y', 'tongue2_likelihood', 'tongue3_x',
-       'tongue3_y', 'tongue3_likelihood']#np.squeeze(np.array(df.iloc[[0]]))
+cols=[["bodyparts"],[xx+"_x" for xx in np.unique(np.array(df.iloc[0])) if xx!="bodyparts"],
+[xx+"_y" for xx in np.unique(np.array(df.iloc[0])) if xx!="bodyparts"],
+[xx+"_likelihood" for xx in np.unique(np.array(df.iloc[0])) if xx!="bodyparts"]]#np.squeeze(np.array(df.iloc[[0]]))
+df.columns = [yy for xx in cols for yy in xx]
 df=df.drop([0,1])
 
 #plot blinks
 #here i think y pos starts from above
-plt.plot(df['eyeLidBottom_y'].astype('float32').values - df['eyeLidTop_y'].astype('float32').values)
-plt.ylabel('eyelidbottom-eyelidtop y position (pixels)')
+plt.plot(df['eyeBottom_y'].astype('float32').values - df['eyeTop_y'].astype('float32').values)
+plt.ylabel('eyelbottom-eyetop y position (pixels)')
 plt.xlabel('frames')
-plt.axhline(y=17, color='r', linestyle='-')
+plt.axhline(y=250, color='r', linestyle='-')
 
 #plot nose movement
-plt.plot(df['nose_y'].astype('float32').values)
+plt.plot(np.mean(df[['noseTop_y', 'noseBottom_y']].astype('float32').values,1))
 plt.ylabel('nose y position (pixels)')
 plt.xlabel('frames')
-plt.axhline(y=58, color='r', linestyle='-')
+plt.axhline(y=70, color='r', linestyle='-')
 
 #plot tongue1 movement
 #assign to nans/0
@@ -41,9 +41,7 @@ plt.plot(df['tongue1_x'].astype('float32').values)
 plt.plot(df['tongue2_x'].astype('float32').values)
 plt.plot(df['tongue3_x'].astype('float32').values)
 
-from sklearn.preprocessing import normalize
-#data
-blinks=df['eyeLidBottom_y'].astype('float32').values - df['eyeLidTop_y'].astype('float32').values
+blinks=df['eyeBottom_y'].astype('float32').values - df['eyeTop_y'].astype('float32').values
 normblinks=normalize([blinks])[0]
 #tongue movement
 tongue=df[['tongue1_x','tongue2_x','tongue3_x']].astype('float32').mean(axis=1, skipna=False)

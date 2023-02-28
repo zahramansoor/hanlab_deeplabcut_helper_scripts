@@ -7,7 +7,7 @@ Created on Wed Feb 15 14:13:27 2023
 
 import pandas as pd, matplotlib.pyplot as plt, numpy as np, seaborn as sns
 
-df = pd.read_csv(r'C:\Users\Han\Desktop\Licks_nose_blink-Zahra-2023-02-16\videos\200929_E130DLC_resnet50_Licks_nose_blinkFeb16shuffle1_10000.csv')
+df = pd.read_csv(r'Z:\DLC\DLC_networks\pupil_licks_nose_paw-Zahra-2023-02-27\videos\230225_E201DLC_resnet50_pupil_licks_nose_pawFeb27shuffle1_50000.csv')
 #change column names
 df.columns=['bodyparts', 'eyeLidTop_x', 'eyeLidTop_y', 'eyeLidTop_likelihood', 'eyeLidBottom_x',
        'eyeLidBottom_y', 'eyeLidBottom_likelihood', 'nose_x', 'nose_y', 'nose_likelihood', 'tongue1_x',
@@ -62,7 +62,7 @@ plt.scatter(range(39998),normtongue)
 # PCA and kmeans
 import sklearn as sk
 from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.decomposition import PCA
 #https://towardsdatascience.com/understanding-k-means-clustering-in-machine-learning-6a6e67336aa1
 dfkmeans = pd.DataFrame(np.array([blinks,nose,tongue]).T)
@@ -106,8 +106,8 @@ silhouette_scores = []
 # evaluation based on silhouette_score
 for p in parameter_grid:
     kmeans_model.set_params(**p)    # set current hyper parameter
-    kmeans_model.fit(df)          # fit model on wine dataset, this will find clusters based on parameter p
-    ss = sk.metrics.silhouette_score(df, kmeans_model.labels_)   # calculate silhouette_score
+    kmeans_model.fit(X_scaled)          # fit model on wine dataset, this will find clusters based on parameter p
+    ss = sk.metrics.silhouette_score(X_scaled, kmeans_model.labels_)   # calculate silhouette_score
     silhouette_scores += [ss]       # store all the scores
     print('Parameter:', p, 'Score', ss)
     # check p which has the best score
@@ -123,8 +123,8 @@ plt.show()
 
 # fitting KMeans    
 kmeans = KMeans(n_clusters=4)    
-kmeans.fit(pca_2_result)
-label = kmeans.fit_predict(pca_2_result)
+kmeans.fit(X_scaled)
+label = kmeans.fit_predict(X_scaled)
 
 # plot pc components
 uniq = np.unique(label)

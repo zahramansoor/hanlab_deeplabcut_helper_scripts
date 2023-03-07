@@ -6,13 +6,13 @@ Created on Wed Feb 15 14:13:27 2023
 """
 
 import pandas as pd, matplotlib.pyplot as plt, numpy as np, seaborn as sns
+import scipy.ndimage
 
-df = pd.read_csv(r'Z:\DLC\DLC_networks\pupil_licks_nose_paw-Zahra-2023-02-27\videos\230225_E201DLC_resnet50_pupil_licks_nose_pawFeb27shuffle1_50000.csv')
+df = pd.read_csv(r'Y:\DLC\DLC_networks\pupil_licks_nose_paw-Zahra-2023-02-27\videos\230225_E201DLC_resnet50_pupil_licks_nose_pawFeb27shuffle1_50000.csv')
 #change column names
-cols=[["bodyparts"],[xx+"_x" for xx in np.unique(np.array(df.iloc[0])) if xx!="bodyparts"],
-[xx+"_y" for xx in np.unique(np.array(df.iloc[0])) if xx!="bodyparts"],
-[xx+"_likelihood" for xx in np.unique(np.array(df.iloc[0])) if xx!="bodyparts"]]#np.squeeze(np.array(df.iloc[[0]]))
-df.columns = [yy for xx in cols for yy in xx]
+cols=[[xx+"_x",xx+"_y",xx+"_likelihood"] for xx in pd.unique(df.iloc[0]) if xx!="bodyparts"]
+cols = [yy for xx in cols for yy in xx]; cols.insert(0, 'bodyparts')
+df.columns = cols
 df=df.drop([0,1])
 
 #plot blinks
@@ -20,7 +20,7 @@ df=df.drop([0,1])
 plt.plot(df['eyeBottom_y'].astype('float32').values - df['eyeTop_y'].astype('float32').values)
 plt.ylabel('eyelbottom-eyetop y position (pixels)')
 plt.xlabel('frames')
-plt.axhline(y=250, color='r', linestyle='-')
+plt.axhline(y=340, color='r', linestyle='-')
 
 #plot nose movement
 plt.plot(np.mean(df[['noseTop_y', 'noseBottom_y']].astype('float32').values,1))
@@ -41,9 +41,13 @@ plt.plot(df['tongue1_x'].astype('float32').values)
 plt.plot(df['tongue2_x'].astype('float32').values)
 plt.plot(df['tongue3_x'].astype('float32').values)
 
-blinks=df['eyeBottom_y'].astype('float32').values - df['eyeTop_y'].astype('float32').values
+blinks=scipy.ndimage.gaussian_filter(df['eyeBottom_y'].astype('float32').values - df['eyeTop_y'].astype('float32').values,sigma=3)
 #tongue movement
 tongue=df[['tongue1_x','tongue2_x','tongue3_x']].astype('float32').mean(axis=1, skipna=False)
+tongue=scipy.ndimage.gaussian_filter(tongue, sigma=3)
+plt.plot(tongue)
+plt.axhline(y=260, color='r', linestyle='-')
+
 #nose
 nose=df[['noseTop_y','noseBottom_y']].astype('float32').mean(axis=1, skipna=False).astype('float32').values
 #lip movement/mouth open
@@ -59,24 +63,27 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.decomposition import PCA
 #https://towardsdatascience.com/understanding-k-means-clustering-in-machine-learning-6a6e67336aa1
-dfkmeans = pd.DataFrame(np.array([blinks,nose,tongue,mouth_open1,mouth_open2]).T)
-dfkmeans.columns=['blinks','nose','tongue_av','mouth_open1','mouth_open2']
+dfkmeans = pd.DataFrame(np.array([blinks,
+    nose,df['tongue3_x'].astype('float32').values,mouth_open2]).T)
+
+columns = ['blinks','nose','tongue','mouth_open2']
+dfkmeans.columns=columns
 
 #classify blinks, sniffs, licks?
-dfkmeans['blinks_lbl'] = [True if xx < 250 else False for i,xx in enumerate(dfkmeans['blinks'])] #arbitrary thres
+dfkmeans['blinks_lbl'] = [True if xx > 340 else False for i,xx in enumerate(dfkmeans['blinks'])] #arbitrary thres
 dfkmeans['sniff_lbl'] =  [True if xx < 70 else False for i,xx in enumerate(dfkmeans['nose'])] #arbitrary thres
-dfkmeans['biglicks'] =  [True if xx > 265 else False for i,xx in enumerate(dfkmeans['tongue_av'])] #arbitrary thres
+dfkmeans['biglicks'] =  [True if xx < 0.8 else False for i,xx in enumerate(dfkmeans['tongue'])] #arbitrary thres
 #dfkmeans['mouth_open1'] =  [True if xx > 298 else False for i,xx in enumerate(dfkmeans['mouth_open1'])] #arbitrary thres
-#dfkmeans['mouth_open2'] =  [True if xx > 0.8 else False for i,xx in enumerate(dfkmeans['mouth_open1'])] #arbitrary thres
+dfkmeans['mouth_open'] =  [True if xx < 0.8 else False for i,xx in enumerate(dfkmeans['mouth_open2'])] #arbitrary thres
 
-X_scaled=StandardScaler().fit_transform(dfkmeans[['blinks','nose','tongue_av']])#,'mouth_open1','mouth_open2']])
+X_scaled=StandardScaler().fit_transform(dfkmeans[columns])#,'mouth_open1','mouth_open2']])
 #https://medium.com/swlh/k-means-clustering-on-high-dimensional-data-d2151e1a4240
 pca_2 = PCA(n_components=2)
 pca_2_result = pca_2.fit_transform(X_scaled)
 print('Explained variation per principal component: {}'.format(pca_2.explained_variance_ratio_))
 print('Cumulative variance explained by 2 principal components: {:.2%}'.format(np.sum(pca_2.explained_variance_ratio_)))
 #convert to df...
-X_scaled = pd.DataFrame(X_scaled, columns=['blinks','nose','tongue_av'])#,'mouth_open1','mouth_open2'])
+X_scaled = pd.DataFrame(X_scaled, columns=columns)#,'mouth_open1','mouth_open2'])
 
 dataset_pca = pd.DataFrame(abs(pca_2.components_), columns=X_scaled.columns, index=['PC_1', 'PC_2'])
 print('\n\n', dataset_pca)
@@ -130,14 +137,19 @@ for i in uniq:
 pca_2_result_bl=pca_2_result[dfkmeans['blinks_lbl']]
 plt.scatter(pca_2_result_bl[:, 0] , pca_2_result_bl[: , 1] , color='k', marker='+')
 pca_2_result_sn=pca_2_result[dfkmeans['sniff_lbl']]
-plt.scatter(pca_2_result_sn[:, 0] , pca_2_result_sn[: , 1] , color='k', marker='4')
+plt.scatter(pca_2_result_sn[:, 0] , pca_2_result_sn[: , 1] , 
+            color='y', marker='x')
 pca_2_result_lk=pca_2_result[dfkmeans['biglicks']]
-plt.scatter(pca_2_result_lk[:, 0] , pca_2_result_lk[: , 1] , color='k', marker='1')
+plt.scatter(pca_2_result_lk[:, 0] , pca_2_result_lk[: , 1] , 
+            color='k', marker='o', facecolors='none')
+pca_2_result_mo=pca_2_result[dfkmeans['mouth_open']]
+plt.scatter(pca_2_result_mo[:, 0] , pca_2_result_mo[: , 1] , 
+            color='k', marker='d', facecolors='none')
 
 #plt.scatter(pca_2_result[:,0],pca_2_result[:,1],s=10,color='k')
 #plot kmeans centroids (first 2 dim??? or only after run on pca)
-plt.scatter(kmeans.cluster_centers_[:,0], kmeans.cluster_centers_[:,1],s=100,color='y',marker='*')
-plt.legend(['Cluster 1', 'Cluster 2', 'Cluster 3', 'blink', 'sniff', 'lick', 'K-means centroids'])
+plt.legend(['Cluster 1', 'Cluster 2', 'Cluster 3', 'blink', 
+            'sniff', 'lick', 'mouth_movement'])
 plt.xlabel("PC1")
 plt.ylabel("PC2")
 

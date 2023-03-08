@@ -7,8 +7,14 @@ Created on Wed Feb 15 14:13:27 2023
 
 import pandas as pd, matplotlib.pyplot as plt, numpy as np, seaborn as sns
 import scipy.ndimage
+from scipy.io import loadmat
 
-df = pd.read_csv(r'Y:\DLC\DLC_networks\pupil_licks_nose_paw-Zahra-2023-02-27\videos\230225_E201DLC_resnet50_pupil_licks_nose_pawFeb27shuffle1_50000.csv')
+df = pd.read_csv(r'Y:\DLC\DLC_networks\pupil_licks_nose_paw-Zahra-2023-02-27\videos\230301_E201DLC_resnet50_pupil_licks_nose_pawFeb27shuffle1_50000.csv')
+mat = loadmat(r'Z:\sstcre_imaging\e201\10\230301_ZD_000_001\suite2p\plane0\Fall.mat') # load fall with behavior aligned data
+forwardvelocity = mat['forwardvel'][0]
+plt.plot(forwardvelocity)
+plt.axhline(y=75, color='r', linestyle='-')
+
 #change column names
 cols=[[xx+"_x",xx+"_y",xx+"_likelihood"] for xx in pd.unique(df.iloc[0]) if xx!="bodyparts"]
 cols = [yy for xx in cols for yy in xx]; cols.insert(0, 'bodyparts')
@@ -19,8 +25,9 @@ df=df.drop([0,1])
 #here i think y pos starts from above
 plt.plot(df['eyeBottom_y'].astype('float32').values - df['eyeTop_y'].astype('float32').values)
 plt.ylabel('eyelbottom-eyetop y position (pixels)')
+plt.ylim([0,100])
 plt.xlabel('frames')
-plt.axhline(y=40, color='r', linestyle='-')
+plt.axhline(y=60, color='r', linestyle='-')
 
 #plot nose movement
 plt.plot(np.mean(df[['noseTop_y', 'noseBottom_y']].astype('float32').values,1))
@@ -37,9 +44,9 @@ df['tongue2_x'][~keep2]=0
 keep3=df['tongue3_likelihood'].astype('float32') > 0.9
 df['tongue3_x'][~keep3]=0
 
-plt.scatter(np.arange(80030),df['tongue1_x'].astype('float32').values)
-plt.scatter(np.arange(80030),df['tongue2_x'].astype('float32').values)
-plt.scatter(np.arange(80030),df['tongue3_x'].astype('float32').values)
+plt.scatter(np.arange(80001),df['tongue1_x'].astype('float32').values)
+plt.scatter(np.arange(80001),df['tongue2_x'].astype('float32').values)
+plt.scatter(np.arange(80001),df['tongue3_x'].astype('float32').values)
 
 blinks=scipy.ndimage.gaussian_filter(df['eyeBottom_y'].astype('float32').values - df['eyeTop_y'].astype('float32').values,sigma=3)
 #tongue movement
@@ -61,18 +68,20 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.decomposition import PCA
 #https://towardsdatascience.com/understanding-k-means-clustering-in-machine-learning-6a6e67336aa1
-dfkmeans = pd.DataFrame(np.array([blinks,
-    nose,tongue,mouth_open]).T)
+dfkmeans = pd.DataFrame(np.array([blinks[1::2],
+    nose[1::2],tongue[1::2],mouth_open[1::2], forwardvelocity]).T)
 
-columns = ['blinks','nose','tongue','mouth_open']
+columns = ['blinks','nose','tongue','mouth_open', 'velocity']
 dfkmeans.columns=columns
 
 #classify blinks, sniffs, licks?
 dfkmeans['blinks_lbl'] = dfkmeans['blinks']<40 #arbitrary thres
 dfkmeans['sniff_lbl'] =  dfkmeans['nose']>260 #arbitrary thres
-dfkmeans['licks'] =  tongue>0#arbitrary thres
+dfkmeans['licks'] =  dfkmeans['tongue']>0#arbitrary thres
 #dfkmeans['mouth_open1'] =  [True if xx > 298 else False for i,xx in enumerate(dfkmeans['mouth_open1'])] #arbitrary thres
 dfkmeans['mouth_mov'] =  dfkmeans['mouth_open']>420 #arbitrary thres
+dfkmeans['fastruns'] =  dfkmeans['velocity']>75 #arbitrary thres
+dfkmeans['stops'] =  dfkmeans['velocity']==0 #arbitrary thres
 
 X_scaled=StandardScaler().fit_transform(dfkmeans[columns])#,'mouth_open1','mouth_open2']])
 #https://medium.com/swlh/k-means-clustering-on-high-dimensional-data-d2151e1a4240
@@ -97,7 +106,7 @@ print("\n******************************************************************")
 # Silhouette score value ranges from 0 to 1, 0 being the worst and 1 being the best.
 
 # candidate values for our number of cluster
-parameters = [4,6,8]
+parameters = np.linspace(3,6,4).astype(int)
 # instantiating ParameterGrid, pass number of clusters as input
 parameter_grid = sk.model_selection.ParameterGrid({'n_clusters': parameters})
 best_score = -1
@@ -122,7 +131,7 @@ plt.xlabel('Number of Clusters')
 plt.show()
 
 # fitting KMeans    
-kmeans = KMeans(n_clusters=6)    
+kmeans = KMeans(n_clusters=5)    
 kmeans.fit(X_scaled)
 label = kmeans.fit_predict(X_scaled)
 
@@ -132,20 +141,24 @@ for i in uniq:
    plt.scatter(pca_2_result[label == i, 0] , pca_2_result[label == i , 1] , label = i)
 
 #plot behaviors
-# pca_2_result_bl=pca_2_result[dfkmeans['blinks_lbl']]
-# plt.scatter(pca_2_result_bl[:, 0] , pca_2_result_bl[: , 1] , color='k', marker='+')
-# pca_2_result_sn=pca_2_result[dfkmeans['sniff_lbl']]
-# plt.scatter(pca_2_result_sn[:, 0] , pca_2_result_sn[: , 1] , 
-#             color='k', marker='x')
-# pca_2_result_lk=pca_2_result[dfkmeans['licks']]
-# plt.scatter(pca_2_result_lk[:, 0] , pca_2_result_lk[: , 1] , 
-#             color='k', marker='o', facecolors='none')
+pca_2_result_bl=pca_2_result[dfkmeans['blinks_lbl']]
+plt.scatter(pca_2_result_bl[:, 0] , pca_2_result_bl[: , 1] , color='k', marker='+')
+pca_2_result_sn=pca_2_result[dfkmeans['sniff_lbl']]
+plt.scatter(pca_2_result_sn[:, 0] , pca_2_result_sn[: , 1] , 
+            color='k', marker='x')
+pca_2_result_lk=pca_2_result[dfkmeans['licks']]
+plt.scatter(pca_2_result_lk[:, 0] , pca_2_result_lk[: , 1] , 
+            color='k', marker='o', facecolors='none')
 pca_2_result_mo=pca_2_result[dfkmeans['mouth_mov']]
 plt.scatter(pca_2_result_mo[:, 0] , pca_2_result_mo[: , 1] , 
             color='k', marker='d', facecolors='none')
+pca_2_result_fast=pca_2_result[dfkmeans['fastruns']]
+plt.scatter(pca_2_result_fast[:, 0] , pca_2_result_fast[: , 1] , 
+            color='k', marker='s', facecolors='none')
+pca_2_result_stop=pca_2_result[dfkmeans['stops']]
+plt.scatter(pca_2_result_stop[:, 0] , pca_2_result_stop[: , 1] , 
+            color='k', marker='|')
 
-#plt.scatter(pca_2_result[:,0],pca_2_result[:,1],s=10,color='k')
-#plot kmeans centroids (first 2 dim??? or only after run on pca)
 plt.legend(['Cluster 1', 'Cluster 2', 'Cluster 3', 'blink', 
             'sniff', 'lick', 'mouth_movement'])
 plt.xlabel("PC1")

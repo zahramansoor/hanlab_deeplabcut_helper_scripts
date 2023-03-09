@@ -1,0 +1,108 @@
+# https://jakevdp.github.io/PythonDataScienceHandbook/05.12-gaussian-mixtures.html
+# Unfortunately, the k-means model has no intrinsic measure of probability or uncertainty of cluster 
+# assignments (although it may be possible to use a bootstrap approach to estimate this uncertainty). 
+# For this, we must think about generalizing the model.
+# An important observation for k-means is that these cluster models must be circular: 
+# k-means has no built-in way of accounting for oblong or elliptical clusters.
+import pandas as pd, matplotlib.pyplot as plt, numpy as np, seaborn as sns
+import scipy.ndimage
+from scipy.io import loadmat
+from sklearn.mixture import GaussianMixture
+
+df = pd.read_csv(r'Y:\DLC\DLC_networks\pupil_licks_nose_paw-Zahra-2023-02-27\videos\230301_E201DLC_resnet50_pupil_licks_nose_pawFeb27shuffle1_50000.csv')
+mat = loadmat(r'Z:\sstcre_imaging\e201\10\230301_ZD_000_001\suite2p\plane0\Fall.mat') # load fall with behavior aligned data
+forwardvelocity = mat['forwardvel'][0]
+
+#change column names
+cols=[[xx+"_x",xx+"_y",xx+"_likelihood"] for xx in pd.unique(df.iloc[0]) if xx!="bodyparts"]
+cols = [yy for xx in cols for yy in xx]; cols.insert(0, 'bodyparts')
+df.columns = cols
+df=df.drop([0,1])
+
+#plot tongue1 movement
+#assign to nans/0
+keep1=df['tongue1_likelihood'].astype('float32') > 0.9
+df['tongue1_x'][~keep1]=0
+keep2=df['tongue2_likelihood'].astype('float32') > 0.9
+df['tongue2_x'][~keep2]=0
+keep3=df['tongue3_likelihood'].astype('float32') > 0.9
+df['tongue3_x'][~keep3]=0
+
+blinks=scipy.ndimage.gaussian_filter(df['eyeBottom_y'].astype('float32').values - df['eyeTop_y'].astype('float32').values,sigma=3)
+#tongue movement
+tongue = df['tongue1_x'].astype('float32').values
+
+#nose
+nose=df[['noseTop_y','noseBottom_y']].astype('float32').mean(axis=1, skipna=False).astype('float32').values
+#lip movement/mouth open
+mouth_open=df[['lip1_x','lip2_x']].astype('float32').mean(axis=1, skipna=False)
+import sklearn as sk
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.decomposition import PCA
+#https://towardsdatascience.com/understanding-k-means-clustering-in-machine-learning-6a6e67336aa1
+dfkmeans = pd.DataFrame(np.array([blinks[1::2], #binning by taking every other value, is this the right way???
+    nose[1::2],tongue[1::2],mouth_open[1::2], forwardvelocity]).T)
+
+columns = ['blinks','nose','tongue','mouth_open', 'velocity']
+dfkmeans.columns=columns
+
+#classify blinks, sniffs, licks?
+dfkmeans['blinks_lbl'] = dfkmeans['blinks']<40 #arbitrary thres
+dfkmeans['sniff_lbl'] =  dfkmeans['nose']>260 #arbitrary thres
+dfkmeans['licks'] =  dfkmeans['tongue']>0#arbitrary thres
+#dfkmeans['mouth_open1'] =  [True if xx > 298 else False for i,xx in enumerate(dfkmeans['mouth_open1'])] #arbitrary thres
+dfkmeans['mouth_mov'] =  dfkmeans['mouth_open']>420 #arbitrary thres
+dfkmeans['fastruns'] =  dfkmeans['velocity']>75 #arbitrary thres
+dfkmeans['stops'] =  dfkmeans['velocity']==0 #arbitrary thres
+
+X_scaled=StandardScaler().fit_transform(dfkmeans[columns])#,'mouth_open1','mouth_open2']])
+#https://medium.com/swlh/k-means-clustering-on-high-dimensional-data-d2151e1a4240
+pca_2 = PCA(n_components=2)
+pca_2_result = pca_2.fit_transform(X_scaled)
+print('Explained variation per principal component: {}'.format(pca_2.explained_variance_ratio_))
+print('Cumulative variance explained by 2 principal components: {:.2%}'.format(np.sum(pca_2.explained_variance_ratio_)))
+#convert to df...
+X_scaled = pd.DataFrame(X_scaled, columns=columns)#,'mouth_open1','mouth_open2'])
+
+dataset_pca = pd.DataFrame(abs(pca_2.components_), columns=X_scaled.columns, index=['PC_1', 'PC_2'])
+print('\n\n', dataset_pca)
+
+print("\n*************** Most important features *************************")
+print('As per PC 1:\n', (dataset_pca[dataset_pca > 0.3].iloc[0]).dropna())   
+print('\n\nAs per PC 2:\n', (dataset_pca[dataset_pca > 0.3].iloc[1]).dropna())
+print("\n******************************************************************")
+
+#%%
+gmm = GaussianMixture(n_components=3).fit(X_scaled)
+label = gmm.predict(X_scaled)
+
+# plot pc components
+uniq = np.unique(label)
+for i in uniq:
+   plt.scatter(pca_2_result[label == i, 0] , pca_2_result[label == i , 1] , label = i)
+#plot behaviors
+pca_2_result_bl=pca_2_result[dfkmeans['blinks_lbl']]
+plt.scatter(pca_2_result_bl[:, 0] , pca_2_result_bl[: , 1] , color='k', marker='+')
+pca_2_result_sn=pca_2_result[dfkmeans['sniff_lbl']]
+plt.scatter(pca_2_result_sn[:, 0] , pca_2_result_sn[: , 1] , 
+            color='k', marker='x')
+pca_2_result_lk=pca_2_result[dfkmeans['licks']]
+plt.scatter(pca_2_result_lk[:, 0] , pca_2_result_lk[: , 1] , 
+            color='k', marker='o', facecolors='none')
+# pca_2_result_mo=pca_2_result[dfkmeans['mouth_mov']]
+# plt.scatter(pca_2_result_mo[:, 0] , pca_2_result_mo[: , 1] , 
+#             color='k', marker='d', facecolors='none')
+pca_2_result_fast=pca_2_result[dfkmeans['fastruns']]
+plt.scatter(pca_2_result_fast[:, 0] , pca_2_result_fast[: , 1] , 
+            color='k', marker='s', facecolors='none')
+pca_2_result_stop=pca_2_result[dfkmeans['stops']]
+plt.scatter(pca_2_result_stop[:, 0] , pca_2_result_stop[: , 1] , 
+            color='k', marker='|')
+
+plt.legend(['Cluster 1', 'Cluster 2', 'Cluster 3', 'blink', 
+            'sniff', 'lick', 'runs', 'stops'])
+plt.xlabel("PC1")
+plt.ylabel("PC2")
+
+# %%

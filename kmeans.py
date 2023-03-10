@@ -131,7 +131,7 @@ plt.xlabel('Number of Clusters')
 plt.show()
 
 # fitting KMeans    
-kmeans = KMeans(n_clusters=5)    
+kmeans = KMeans(n_clusters=3)    
 kmeans.fit(X_scaled)
 label = kmeans.fit_predict(X_scaled)
 
@@ -149,9 +149,9 @@ plt.scatter(pca_2_result_sn[:, 0] , pca_2_result_sn[: , 1] ,
 pca_2_result_lk=pca_2_result[dfkmeans['licks']]
 plt.scatter(pca_2_result_lk[:, 0] , pca_2_result_lk[: , 1] , 
             color='k', marker='o', facecolors='none')
-pca_2_result_mo=pca_2_result[dfkmeans['mouth_mov']]
-plt.scatter(pca_2_result_mo[:, 0] , pca_2_result_mo[: , 1] , 
-            color='k', marker='d', facecolors='none')
+# pca_2_result_mo=pca_2_result[dfkmeans['mouth_mov']]
+# plt.scatter(pca_2_result_mo[:, 0] , pca_2_result_mo[: , 1] , 
+#             color='k', marker='d', facecolors='none')
 pca_2_result_fast=pca_2_result[dfkmeans['fastruns']]
 plt.scatter(pca_2_result_fast[:, 0] , pca_2_result_fast[: , 1] , 
             color='k', marker='s', facecolors='none')
@@ -160,7 +160,7 @@ plt.scatter(pca_2_result_stop[:, 0] , pca_2_result_stop[: , 1] ,
             color='k', marker='|')
 
 plt.legend(['Cluster 1', 'Cluster 2', 'Cluster 3', 'blink', 
-            'sniff', 'lick', 'mouth_movement'])
+            'sniff', 'lick', 'runs', 'stops'])
 plt.xlabel("PC1")
 plt.ylabel("PC2")
 
